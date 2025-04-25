@@ -1,5 +1,4 @@
 // components/ContactList/ContactItem.tsx
-import { useState } from 'react';
 import styles from './Contacto.module.css';
 
 interface ContactItemProps {
@@ -9,13 +8,10 @@ interface ContactItemProps {
 }
 
 export default function Contacto({ id, nombre, numeroCuenta }: ContactItemProps) {
-  const [showAccount, setShowAccount] = useState(false);
 
   const formatNumeroCuenta = (numeroCuenta: string) => {
     if (!numeroCuenta) return '';
-    if (showAccount) {
-      return numeroCuenta;
-    }
+    return numeroCuenta;
     const lastFour = numeroCuenta.slice(-4);
     return `xxxx-xxxx-xxxx-${lastFour}`;
   };
@@ -23,17 +19,10 @@ export default function Contacto({ id, nombre, numeroCuenta }: ContactItemProps)
 
   return (
     <div className={styles.contactItem}>
-      <p className={styles.contactName}>{nombre}</p>
-        <span>Número de cuenta: </span>
-      {formatNumeroCuenta(numeroCuenta)}
-      
-        <button
-          className={styles.toggleButton}
-          onClick={() => setShowAccount(!showAccount)}
-        >
-          {showAccount ? 'Ocultar' : 'Mostrar'}
-        </button>
-      
+      <div className="flex gap-4">
+        <div className="w-1/2  p-4"> <p>{ nombre}</p></div>
+        <div className="w-1/2 p-4">Número de cuenta: {formatNumeroCuenta(numeroCuenta)}</div>
+      </div>
     </div>
   );
 }
