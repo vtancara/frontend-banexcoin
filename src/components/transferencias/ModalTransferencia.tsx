@@ -14,6 +14,11 @@ interface Contacto {
   nombre: string;
   numeroCuenta: string;
 }
+interface CuentaContacto {
+  id: number;
+  contacto: Contacto;
+  cuenta: Cuenta;
+}
 interface TransferModalProps {
   isOpen: boolean;
   onClose: () => void;
@@ -21,9 +26,8 @@ interface TransferModalProps {
 }
 
 export default function TransferModal({ isOpen, onClose, cuenta }: TransferModalProps) {
-  const [contactos, setContactos] = useState<Array<Contacto>>([])
-  const [idCuentaDestino, setIdCuentaDestino] = useState<number | null>(null);
-  const [monto, setMonto] = useState("");
+  const [contactos, setContactos] = useState<Array<CuentaContacto>>([])
+  const [loading, setLoading] = useState(false);
 
   const [form, setForm] = useState({
     idCuentaOrigen: '',
@@ -33,6 +37,7 @@ export default function TransferModal({ isOpen, onClose, cuenta }: TransferModal
 
   const fetchData = async () => {
     try {
+      setLoading(true);
       const selectedUserId = localStorage.getItem('selectedUserId');
       // Obtener cuentas del usuario
       const contactosResponse = await api.get(`/contactos/usuario/${selectedUserId}`);
@@ -40,21 +45,25 @@ export default function TransferModal({ isOpen, onClose, cuenta }: TransferModal
     } catch (error) {
       console.error('Error fetching user data:', error);
     } finally {
+      setLoading(false);
     }
   };
 
   useEffect(() => {
-    fetchData()
-  }, [])
+    if (isOpen) {
+      fetchData();
+      // Inicializar el formulario con la cuenta de origen
+      setForm({
+        idCuentaOrigen: cuenta.id.toString(),
+        idCuentaDestino: '',
+        monto: '',
+      });
+    }
+  }, [isOpen, cuenta]);
 
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setForm({ ...form, [e.target.name]: e.target.value });
-  };
-
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    console.log('Datos enviados:', form);
-    onClose();
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
+    const { name, value } = e.target;
+    setForm({ ...form, [name]: value });
   };
 
   const handleMontoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -64,7 +73,32 @@ export default function TransferModal({ isOpen, onClose, cuenta }: TransferModal
     const regex = /^\d*\.?\d{0,2}$/;
 
     if (regex.test(valor)) {
-      setMonto(valor);
+      setForm({ ...form, monto: valor });
+    }
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+
+    try {
+      setLoading(true);
+
+      // Aquí puedes enviar los datos a tu API
+      const transferData = {
+        idCuentaOrigen: form.idCuentaOrigen,
+        idCuentaDestino: form.idCuentaDestino,
+        monto: parseFloat(form.monto)
+      };
+
+      console.log('Datos a enviar:', transferData);
+
+      await api.post('/transacciones', transferData);
+      // Cerrar el modal después de enviar
+      onClose();
+    } catch (error) {
+      console.error('Error al realizar la transferencia:', error);
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -79,40 +113,66 @@ export default function TransferModal({ isOpen, onClose, cuenta }: TransferModal
           <div className="mb-4">
             <p className="text-sm font-medium text-gray-700">Cuenta de Origen</p>
             <p className="mt-1 text-base text-gray-900">{cuenta.numero_cuenta}</p>
+            <p className="text-sm text-gray-500">Saldo disponible: ${cuenta.saldo}</p>
           </div>
-          <select
-            className="w-full border border-gray-300 p-2 rounded"
-            onChange={(e) => setIdCuentaDestino(Number(e.target.value))}
-          >
-            <option value="">Selecciona una cuenta</option>
-            {contactos.map((contacto) => (
-              <option key={contacto.contacto.id} value={contacto.cuenta.id}>
-                {contacto.contacto.nombre} - {contacto.cuenta.id} - {contacto.cuenta.numero_cuenta}
-              </option>
-            ))}
-          </select>
-          <input
-            type="text"
-            value={monto}
-            onChange={handleMontoChange}
-            placeholder="Ej: 100.00"
-            className="w-full border border-gray-300 p-2 rounded"
-            required
-          />
 
-          <div className="flex justify-between">
-            <button
-              type="submit"
-              className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700"
+          <div>
+            <label htmlFor="idCuentaDestino" className="block text-sm font-medium text-gray-700">
+              Cuenta de Destino
+            </label>
+            <select
+              id="idCuentaDestino"
+              name="idCuentaDestino"
+              className="mt-1 w-full border border-gray-300 p-2 rounded"
+              value={form.idCuentaDestino}
+              onChange={handleChange}
+              required
             >
-              Enviar
-            </button>
+              <option value="">Selecciona una cuenta</option>
+              {contactos.map((contacto) => (
+                <option key={contacto.contacto.id} value={contacto.cuenta.id}>
+                  {contacto.contacto.nombre} - {contacto.cuenta.numero_cuenta}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div>
+            <label htmlFor="monto" className="block text-sm font-medium text-gray-700">
+              Monto a transferir
+            </label>
+            <input
+              type="text"
+              id="monto"
+              name="monto"
+              value={form.monto}
+              onChange={handleMontoChange}
+              placeholder="Ej: 100.00"
+              className="mt-1 w-full border border-gray-300 p-2 rounded"
+              required
+            />
+            {parseFloat(form.monto) > cuenta.saldo && (
+              <p className="text-red-500 text-sm mt-1">
+                ¡El monto excede tu saldo disponible!
+              </p>
+            )}
+          </div>
+
+          <div className="flex justify-between pt-4">
             <button
               type="button"
               onClick={onClose}
-              className="text-gray-500 hover:text-gray-700"
+              className="text-white px-4 py-2 rounded bg-red-600 hover:bg-red-700"
+              disabled={loading}
             >
               Cancelar
+            </button>
+            <button
+              type="submit"
+              className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700"
+              disabled={loading || !form.idCuentaDestino || !form.monto || parseFloat(form.monto) > cuenta.saldo}
+            >
+              {loading ? 'Procesando...' : 'Transferir'}
             </button>
           </div>
         </form>

@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import api from '../../lib/api';
 import Contactos from '@/components/contactos';
 import TransferModal from '@/components/transferencias/ModalTransferencia';
+import TransaccionesHistorialModal from '@/components/detalles/ModalDetalles';
 
 interface Cuenta {
   id: number;
@@ -15,9 +16,22 @@ interface Cuenta {
 export default function Dashboard() {
   const [cuentas, setCuentas] = useState<Cuenta[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [verModal, setVerModal] = useState(false);
+  const [verModalTransacciones, setVerModalTransacciones] = useState(false);
+  const [verModalDetalle, setVerModalDetalle] = useState(false);
   const [cuentaSeleccionada, setCuentaSeleccionada] = useState<Cuenta>({} as Cuenta);
   const router = useRouter();
+
+  const fetchUserData = async (selectedUserId: string) => {
+    try {
+      // Obtener cuentas del usuario
+      const cuentasResponse = await api.get(`/cuentas/usuario/${selectedUserId}`);
+      setCuentas(cuentasResponse.data);
+    } catch (error) {
+      console.error('Error fetching user data:', error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   useEffect(() => {
     const selectedUserId = localStorage.getItem('selectedUserId');
@@ -26,26 +40,27 @@ export default function Dashboard() {
       router.push('/');
       return;
     }
-
-    const fetchUserData = async () => {
-      try {
-        // Obtener cuentas del usuario
-        const cuentasResponse = await api.get(`/cuentas/usuario/${selectedUserId}`);
-        setCuentas(cuentasResponse.data);
-      } catch (error) {
-        console.error('Error fetching user data:', error);
-      } finally {
-        setIsLoading(false);
-      }
-    };
-
-    fetchUserData();
+    if (selectedUserId)
+      fetchUserData(selectedUserId);
   }, [router]);
 
   const showModalTransferencia = (cuenta: Cuenta) => { 
-    setVerModal(!verModal)
+    setVerModalTransacciones(!verModalTransacciones)
     console.log('Cuenta seleccionada:', cuenta);
     setCuentaSeleccionada(cuenta)
+  }
+
+  const showModalDetalles = (cuenta: Cuenta) => {
+    setVerModalDetalle(!verModalDetalle)
+    console.log('Cuenta seleccionada:', cuenta);
+    setCuentaSeleccionada(cuenta)
+  }
+
+  const actualizarSaldoss = async () => {
+    const selectedUserId = localStorage.getItem('selectedUserId');
+    if (selectedUserId)
+      fetchUserData(selectedUserId);
+    setVerModalTransacciones(false)
   }
 
   if (isLoading) {
@@ -58,7 +73,14 @@ export default function Dashboard() {
 
   return (
     <div className="min-h-screen bg-gray-100">
-      <TransferModal isOpen={verModal} onClose={() => setVerModal(false)} cuenta={cuentaSeleccionada} />
+      {/* Modal de transacciones */}
+      <TransferModal isOpen={verModalTransacciones} onClose={() => actualizarSaldoss() } cuenta={cuentaSeleccionada} />
+      {/* Modal de historial */}
+      <TransaccionesHistorialModal
+        isOpen={verModalDetalle}
+        onClose={() => setVerModalDetalle(false)}
+        idCuenta={cuentaSeleccionada.id}
+      />
       <main className="max-w-7xl mx-auto py-6 sm:px-6 lg:px-8">
         <div className="px-4 py-6 sm:px-0">
           <div className="mb-8">
@@ -74,7 +96,7 @@ export default function Dashboard() {
                       ${cuenta.saldo ? cuenta.saldo : '0.00'}
                     </p>
                     <div className="mt-4 space-x-2">
-                      <button className="bg-blue-100 hover:bg-blue-400 hover:text-blue-600 cursor-pointer text-blue-600 px-3 py-1 rounded text-sm">
+                      <button className="bg-blue-100 hover:bg-blue-400 hover:text-blue-600 cursor-pointer text-blue-600 px-3 py-1 rounded text-sm" onClick={() => showModalDetalles(cuenta)}>
                         Ver Detalles
                       </button>
                       <button className="bg-green-100 hover:bg-green-400 hover:text-green-600 text-green-600 cursor-pointer px-3 py-1 rounded" onClick={() => showModalTransferencia(cuenta)}>
